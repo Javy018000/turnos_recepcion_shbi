@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Turnos – TV | SHBI</title>
+  <link rel="stylesheet" href="tv.css">
+</head>
+<body>
+  <div class="contenedor">
+
+    <header class="encabezado">
+      <div class="header-izq">
+        <img src="/assets/logo.png" alt="SHBI" class="logo-img">
+      </div>
+      <div class="header-centro">
+        <span class="nombre-l1">SEDE HABITACIONAL</span>
+        <span class="nombre-l2">BICENTENARIO DE LA INDEPENDENCIA</span>
+      </div>
+      <div class="header-der">
+        <span id="reloj" class="reloj">--:--:--</span>
+      </div>
+    </header>
+
+    <main class="principal">
+
+      <section class="panel-activo">
+        <p class="panel-etiqueta">EN ATENCIÓN</p>
+        <div id="turno-activo-numero" class="numero-grande">--</div>
+        <div class="linea-roja"></div>
+        <div id="turno-activo-servicio" class="servicio-grande">Esperando llamado</div>
+        <div id="turno-activo-nombre" class="nombre-activo"></div>
+      </section>
+
+      <section class="panel-cola">
+        <p class="panel-etiqueta">PRÓXIMOS TURNOS</p>
+        <ul id="lista-cola" class="lista-cola">
+          <li class="cola-vacia">Sin turnos en espera</li>
+        </ul>
+      </section>
+
+    </main>
+
+    <footer class="barra-inferior">
+      <div class="footer-item">
+        <span class="footer-label">EN ESPERA</span>
+        <span class="footer-valor" id="count-espera">0</span>
+      </div>
+      <div class="footer-sep"></div>
+      <span id="estado-conexion" class="estado-desconectado">Conectando...</span>
+    </footer>
+
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="tv.js"></script>
+</body>
+</html>

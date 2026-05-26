@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Turnos – Lobby | SHBI</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="tablet.css">
+</head>
+<body>
+
+  <!-- Pantalla 1: selección de servicio -->
+  <div id="pantalla-inicio" class="pantalla activa">
+    <header class="tablet-header">
+      <img src="/assets/logo.png" alt="SHBI" class="logo-img">
+      <div class="hotel-titulo">
+        <span class="hotel-l1">SEDE HABITACIONAL</span>
+        <span class="hotel-l2">Bicentenario de la Independencia</span>
+      </div>
+      <p class="bienvenida">Seleccione el servicio que desea</p>
+    </header>
+
+    <main class="botones-grid">
+      <button class="btn-servicio" data-servicio="check-in">
+        <i class="ti ti-door-enter icono-servicio"></i>
+        <span class="btn-label">Check-In</span>
+      </button>
+      <button class="btn-servicio" data-servicio="check-out">
+        <i class="ti ti-door-exit icono-servicio"></i>
+        <span class="btn-label">Check-Out</span>
+      </button>
+      <button class="btn-servicio" data-servicio="informacion">
+        <i class="ti ti-info-circle icono-servicio"></i>
+        <span class="btn-label">Información</span>
+      </button>
+      <button class="btn-servicio" data-servicio="concierge">
+        <i class="ti ti-map-pin icono-servicio"></i>
+        <span class="btn-label">Concierge</span>
+      </button>
+    </main>
+
+    <footer class="tablet-footer">
+      <span id="estado-conexion-tablet" class="estado-desconectado">Conectando...</span>
+    </footer>
+  </div>
+
+  <!-- Pantalla 2: formulario nombre y observación -->
+  <div id="pantalla-formulario" class="pantalla">
+    <div class="form-scroll">
+      <div class="form-contenido">
+
+        <button id="btn-volver-form" class="btn-volver-mini">
+          <i class="ti ti-arrow-left"></i> Volver
+        </button>
+
+        <div id="form-servicio-badge" class="form-servicio-badge"></div>
+
+        <h2 class="form-titulo">¿Cuál es su nombre?</h2>
+
+        <div class="form-grupo">
+          <label class="form-label" for="input-nombre">
+            Nombre completo <span class="requerido">*</span>
+          </label>
+          <input
+            id="input-nombre"
+            type="text"
+            class="form-input"
+            placeholder="Ej: María García"
+            maxlength="60"
+            autocomplete="off"
+            autocorrect="off"
+            spellcheck="false"
+          >
+          <p id="error-nombre" class="form-error oculto">
+            <i class="ti ti-alert-circle"></i> Por favor ingrese su nombre
+          </p>
+        </div>
+
+        <div class="form-grupo">
+          <label class="form-label" for="input-observacion">
+            Observación <span class="opcional">(opcional — solo la ve recepción)</span>
+          </label>
+          <input
+            id="input-observacion"
+            type="text"
+            class="form-input"
+            placeholder="Ej: Habitación 305, solicitud especial..."
+            maxlength="100"
+            autocomplete="off"
+          >
+        </div>
+
+        <button id="btn-confirmar-turno" class="btn-confirmar">
+          <i class="ti ti-ticket"></i> Obtener turno
+        </button>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Pantalla 3: confirmación -->
+  <div id="pantalla-confirmacion" class="pantalla">
+    <div class="conf-contenido">
+      <div class="conf-check"><i class="ti ti-circle-check"></i></div>
+      <p class="conf-etiqueta">Su número de turno es</p>
+      <div id="conf-numero" class="conf-numero">--</div>
+      <div id="conf-servicio-badge" class="conf-servicio-badge"></div>
+      <p id="conf-espera-texto" class="conf-espera-texto"></p>
+      <button id="btn-volver" class="btn-volver">
+        <i class="ti ti-arrow-left"></i>&nbsp; Sacar otro turno
+      </button>
+      <p class="conf-auto">Regresa automáticamente en <span id="cuenta-regresiva">8</span>s</p>
+    </div>
+  </div>
+
+  <!-- Pantalla 4: error -->
+  <div id="pantalla-error" class="pantalla">
+    <div class="error-contenido">
+      <i class="ti ti-wifi-off error-icono"></i>
+      <p class="error-texto">No se pudo conectar al servidor</p>
+      <button id="btn-reintentar" class="btn-volver">
+        <i class="ti ti-refresh"></i>&nbsp; Reintentar
+      </button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="tablet.js"></script>
+</body>
+</html>

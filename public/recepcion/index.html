@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Recepción – SHBI</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="recepcion.css">
+</head>
+<body>
+
+  <div id="banner-conexion" class="banner-conexion oculto">
+    <i class="ti ti-wifi-off"></i> Reconectando al servidor...
+  </div>
+
+  <header class="encabezado">
+    <div class="header-marca">
+      <img src="/assets/logo.png" alt="SHBI" class="logo-img">
+      <div class="header-texto">
+        <span class="hotel-l1">SEDE HABITACIONAL</span>
+        <span class="hotel-l2">Bicentenario de la Independencia</span>
+      </div>
+    </div>
+    <div class="header-der">
+      <span class="panel-label">PANEL DE RECEPCIÓN</span>
+      <span id="estado-conexion" class="estado-desconectado">Conectando...</span>
+    </div>
+  </header>
+
+  <main class="layout">
+
+    <section class="columna-cola">
+      <h2 class="seccion-titulo">
+        <i class="ti ti-list-check"></i>
+        Cola de espera
+        <span id="badge-espera" class="badge">0</span>
+      </h2>
+      <ul id="lista-cola" class="lista-cola">
+        <li class="cola-vacia">No hay turnos en espera</li>
+      </ul>
+    </section>
+
+    <section class="columna-control">
+
+      <div class="turno-activo-card">
+        <p class="card-etiqueta">TURNO ACTIVO</p>
+        <div id="activo-numero" class="activo-numero">--</div>
+        <div id="activo-servicio" class="activo-servicio">Sin turno activo</div>
+        <div id="activo-tiempo" class="activo-tiempo"></div>
+      </div>
+
+      <div class="acciones">
+        <button id="btn-llamar" class="btn btn-primario">
+          <i class="ti ti-player-skip-forward"></i> Llamar siguiente
+        </button>
+        <button id="btn-atendido" class="btn btn-atendido" disabled>
+          <i class="ti ti-check"></i> Marcar atendido
+        </button>
+      </div>
+
+      <div class="estadisticas">
+        <h3 class="seccion-titulo"><i class="ti ti-chart-bar"></i> Estadísticas del día</h3>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-valor" id="stat-atendidos">0</span>
+            <span class="stat-label">Atendidos</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-valor" id="stat-espera">0</span>
+            <span class="stat-label">En espera</span>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <div id="modal-cancelar" class="modal oculto">
+    <div class="modal-contenido">
+      <div class="modal-icono"><i class="ti ti-trash"></i></div>
+      <p class="modal-pregunta">¿Cancelar el turno?</p>
+      <p class="modal-info"><strong id="modal-turno-info"></strong></p>
+      <div class="modal-acciones">
+        <button id="modal-confirmar" class="btn btn-peligro">Sí, cancelar</button>
+        <button id="modal-cancelar-btn" class="btn btn-secundario">No, volver</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="recepcion.js"></script>
+</body>
+</html>
