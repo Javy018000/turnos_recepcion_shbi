@@ -21,17 +21,29 @@ function actualizarReloj() {
 setInterval(actualizarReloj, 1000);
 actualizarReloj();
 
+let audioActual = null;
+
 function anunciarVoz(turno) {
-  if (!window.speechSynthesis) return;
-  speechSynthesis.cancel();
   const num    = parseInt(turno.numero, 10);
   const nombre = turno.nombre ? `, ${turno.nombre},` : ',';
   const svc    = ETIQUETAS_SERVICIO[turno.servicio] || turno.servicio;
   const texto  = `Turno número ${num}${nombre} ${svc}, por favor acérquese a recepción`;
-  const msg    = new SpeechSynthesisUtterance(texto);
-  msg.lang     = 'es-CO';
-  msg.rate     = 0.88;
-  speechSynthesis.speak(msg);
+
+  if (audioActual) {
+    audioActual.pause();
+    audioActual = null;
+  }
+
+  fetch('/tts?texto=' + encodeURIComponent(texto))
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); })
+    .then(blob => {
+      const url   = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioActual = audio;
+      audio.play();
+      audio.onended = () => { URL.revokeObjectURL(url); audioActual = null; };
+    })
+    .catch(e => console.error('[tv] Error TTS:', e));
 }
 
 function animarCambio(numero, servicio, nombre) {

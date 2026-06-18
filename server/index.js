@@ -1,8 +1,11 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const { execFile } = require('child_process');
 const path = require('path');
 const os = require('os');
+const fs = require('fs');
+const crypto = require('crypto');
 const turnos = require('./turnos');
 
 function obtenerIPLocal() {
@@ -25,6 +28,49 @@ app.use('/recepcion', express.static(path.join(__dirname, '../public/recepcion')
 app.use('/tablet', express.static(path.join(__dirname, '../public/tablet')));
 app.use('/tv', express.static(path.join(__dirname, '../public/tv')));
 app.use('/assets', express.static(path.join(__dirname, '../public/assets')));
+
+app.get('/tts', (req, res) => {
+  const texto = (req.query.texto || '').trim().slice(0, 400);
+  if (!texto) return res.status(400).end();
+
+  const id      = crypto.randomBytes(8).toString('hex');
+  const txtPath = path.join(os.tmpdir(), `tts_${id}.txt`);
+  const wavPath = path.join(os.tmpdir(), `tts_${id}.wav`);
+
+  try { fs.writeFileSync(txtPath, texto, 'utf8'); }
+  catch { return res.status(500).end(); }
+
+  const txtPs = txtPath.replace(/'/g, "''");
+  const wavPs = wavPath.replace(/'/g, "''");
+
+  const script = [
+    "Add-Type -AssemblyName System.Speech",
+    "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer",
+    "$s.SelectVoice('Microsoft Helena Desktop')",
+    "$s.Rate = -1",
+    `$s.SetOutputToWaveFile('${wavPs}')`,
+    `$texto = [System.IO.File]::ReadAllText('${txtPs}', [System.Text.Encoding]::UTF8)`,
+    "$s.Speak($texto)",
+    "$s.SetOutputToDefaultAudioDevice()"
+  ].join('\n');
+
+  const encoded = Buffer.from(script, 'utf16le').toString('base64');
+
+  execFile('powershell.exe', ['-NonInteractive', '-EncodedCommand', encoded], { timeout: 10000 }, (err) => {
+    fs.unlink(txtPath, () => {});
+    if (err || !fs.existsSync(wavPath)) {
+      fs.unlink(wavPath, () => {});
+      console.error('[tts] Error generando audio:', err?.message);
+      return res.status(500).end();
+    }
+    res.setHeader('Content-Type', 'audio/wav');
+    res.setHeader('Cache-Control', 'no-store');
+    const stream = fs.createReadStream(wavPath);
+    stream.pipe(res);
+    stream.on('close', () => fs.unlink(wavPath, () => {}));
+    stream.on('error', () => res.status(500).end());
+  });
+});
 
 app.get('/', (req, res) => res.redirect('/recepcion'));
 
