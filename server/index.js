@@ -7,6 +7,7 @@ const os = require('os');
 const fs = require('fs');
 const crypto = require('crypto');
 const turnos = require('./turnos');
+const { wavABuferMp3 } = require('./lib/mp3-encoder');
 
 function obtenerIPLocal() {
   const interfaces = os.networkInterfaces();
@@ -37,6 +38,11 @@ app.get('/tts', (req, res) => {
   const txtPath = path.join(os.tmpdir(), `tts_${id}.txt`);
   const wavPath = path.join(os.tmpdir(), `tts_${id}.wav`);
 
+  const limpiar = () => {
+    fs.unlink(txtPath, () => {});
+    fs.unlink(wavPath, () => {});
+  };
+
   try { fs.writeFileSync(txtPath, texto, 'utf8'); }
   catch(e) { return res.status(500).end(); }
 
@@ -56,18 +62,27 @@ app.get('/tts', (req, res) => {
 
   const encoded = Buffer.from(script, 'utf16le').toString('base64');
 
-  execFile('powershell.exe', ['-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded], { timeout: 10000 }, (err) => {
+  execFile('powershell.exe', ['-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded], { timeout: 10000 }, (errPs) => {
     fs.unlink(txtPath, () => {});
     if (!fs.existsSync(wavPath)) {
-      console.error('[tts] WAV no generado:', err?.message);
+      console.error('[tts] WAV no generado:', errPs?.message);
+      limpiar();
       return res.status(500).end();
     }
-    res.setHeader('Content-Type', 'audio/wav');
-    res.setHeader('Cache-Control', 'no-store');
-    const stream = fs.createReadStream(wavPath);
-    stream.pipe(res);
-    stream.on('close', () => fs.unlink(wavPath, () => {}));
-    stream.on('error', () => res.status(500).end());
+
+    // Convertir WAV → MP3 en memoria (Tizen no reproduce el WAV de SAPI)
+    try {
+      const wav = fs.readFileSync(wavPath);
+      const mp3 = wavABuferMp3(wav);
+      fs.unlink(wavPath, () => {});
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(mp3);
+    } catch (e) {
+      console.error('[tts] Error convirtiendo a MP3:', e.message);
+      limpiar();
+      res.status(500).end();
+    }
   });
 });
 
