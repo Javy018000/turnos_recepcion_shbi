@@ -21,7 +21,20 @@ function actualizarReloj() {
 setInterval(actualizarReloj, 1000);
 actualizarReloj();
 
-let audioActual = null;
+const audioTurno = new Audio();
+const SILENCIO = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+let audioDesbloqueado = false;
+
+function desbloquearAudio() {
+  if (audioDesbloqueado) return;
+  audioDesbloqueado = true;
+  audioTurno.src = SILENCIO;
+  audioTurno.play().catch(() => {});
+  const overlay = document.getElementById('overlay-sonido');
+  if (overlay) overlay.classList.add('oculto');
+}
+document.addEventListener('click', desbloquearAudio);
+document.addEventListener('keydown', desbloquearAudio);
 
 function anunciarVoz(turno) {
   const num    = parseInt(turno.numero, 10);
@@ -29,19 +42,13 @@ function anunciarVoz(turno) {
   const svc    = ETIQUETAS_SERVICIO[turno.servicio] || turno.servicio;
   const texto  = `Turno número ${num}${nombre} ${svc}, por favor acérquese a recepción`;
 
-  if (audioActual) {
-    audioActual.pause();
-    audioActual = null;
-  }
-
   fetch('/tts?texto=' + encodeURIComponent(texto))
     .then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); })
     .then(blob => {
-      const url   = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audioActual = audio;
-      audio.play();
-      audio.onended = () => { URL.revokeObjectURL(url); audioActual = null; };
+      const url = URL.createObjectURL(blob);
+      audioTurno.src = url;
+      audioTurno.play().catch(e => console.error('[tv] play bloqueado:', e));
+      audioTurno.onended = () => URL.revokeObjectURL(url);
     })
     .catch(e => console.error('[tv] Error TTS:', e));
 }
