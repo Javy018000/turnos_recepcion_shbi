@@ -42,15 +42,8 @@ function anunciarVoz(turno) {
   const svc    = ETIQUETAS_SERVICIO[turno.servicio] || turno.servicio;
   const texto  = `Turno número ${num}${nombre} ${svc}, por favor acérquese a recepción`;
 
-  fetch('/tts?texto=' + encodeURIComponent(texto))
-    .then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); })
-    .then(blob => {
-      const url = URL.createObjectURL(blob);
-      audioTurno.src = url;
-      audioTurno.play().catch(e => console.error('[tv] play bloqueado:', e));
-      audioTurno.onended = () => URL.revokeObjectURL(url);
-    })
-    .catch(e => console.error('[tv] Error TTS:', e));
+  audioTurno.src = '/tts?texto=' + encodeURIComponent(texto) + '&t=' + Date.now();
+  audioTurno.play().catch(e => console.error('[tv] play bloqueado:', e));
 }
 
 function animarCambio(numero, servicio, nombre) {
