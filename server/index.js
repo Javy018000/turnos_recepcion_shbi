@@ -38,7 +38,7 @@ app.get('/tts', (req, res) => {
   const wavPath = path.join(os.tmpdir(), `tts_${id}.wav`);
 
   try { fs.writeFileSync(txtPath, texto, 'utf8'); }
-  catch { return res.status(500).end(); }
+  catch(e) { return res.status(500).end(); }
 
   const txtPs = txtPath.replace(/'/g, "''");
   const wavPs = wavPath.replace(/'/g, "''");
@@ -51,16 +51,15 @@ app.get('/tts', (req, res) => {
     `$s.SetOutputToWaveFile('${wavPs}')`,
     `$texto = [System.IO.File]::ReadAllText('${txtPs}', [System.Text.Encoding]::UTF8)`,
     "$s.Speak($texto)",
-    "$s.SetOutputToDefaultAudioDevice()"
+    "$s.Dispose()"
   ].join('\n');
 
   const encoded = Buffer.from(script, 'utf16le').toString('base64');
 
-  execFile('powershell.exe', ['-NonInteractive', '-EncodedCommand', encoded], { timeout: 10000 }, (err) => {
+  execFile('powershell.exe', ['-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded], { timeout: 10000 }, (err) => {
     fs.unlink(txtPath, () => {});
-    if (err || !fs.existsSync(wavPath)) {
-      fs.unlink(wavPath, () => {});
-      console.error('[tts] Error generando audio:', err?.message);
+    if (!fs.existsSync(wavPath)) {
+      console.error('[tts] WAV no generado:', err?.message);
       return res.status(500).end();
     }
     res.setHeader('Content-Type', 'audio/wav');
