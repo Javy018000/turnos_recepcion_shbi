@@ -191,10 +191,20 @@ io.on('connection', (socket) => {
     const est = turnos.obtenerEstado();
     const turno = est.puestos[puesto] && est.puestos[puesto].turnoActivo;
     if (turno) {
+      turnos.actualizarAnuncio(turno.id, 'encolado');
       io.emit('turno:activo', turno);
+      io.emit('estado:sync', turnos.obtenerEstado());
       console.log(`[server] Recepción ${puesto} repite llamado: ${turno.servicio} N° ${turno.numero}`);
     } else {
       socket.emit('error', { mensaje: 'No hay turno activo para repetir' });
+    }
+  });
+
+  // La TV reporta en qué fase va el anuncio de voz de un turno
+  socket.on('anuncio:estado', ({ id, fase } = {}) => {
+    if (!id || !['anunciando', 'anunciado'].includes(fase)) return;
+    if (turnos.actualizarAnuncio(id, fase)) {
+      io.emit('estado:sync', turnos.obtenerEstado());
     }
   });
 

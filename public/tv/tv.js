@@ -83,6 +83,7 @@ async function reproducirSiguiente() {
     const resp = await fetch('/tts?texto=' + encodeURIComponent(textoAnuncio(turno)));
     if (!resp.ok) throw new Error('TTS ' + resp.status);
     url = URL.createObjectURL(await resp.blob());
+    socket.emit('anuncio:estado', { id: turno.id, fase: 'anunciando' });
     await reproducirHasta(url);
   } catch (e) {
     console.error('[tv] anuncio falló:', e);
@@ -90,6 +91,7 @@ async function reproducirSiguiente() {
     if (url) URL.revokeObjectURL(url);
     audioTurno.onended = null;
     audioTurno.onerror = null;
+    socket.emit('anuncio:estado', { id: turno.id, fase: 'anunciado' });
     setTimeout(() => { reproduciendo = false; reproducirSiguiente(); }, PAUSA_ENTRE_ANUNCIOS);
   }
 }

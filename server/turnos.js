@@ -106,6 +106,7 @@ async function llamarSiguiente(puesto) {
   const turno = estado.cola.shift();
   turno.puesto = Number(clave);
   turno.activadoEn = new Date().toISOString();
+  turno.anuncio = 'encolado'; // encolado → anunciando → anunciado
   estado.puestos[clave].turnoActivo = turno;
   await escribirEstado(estado);
 
@@ -125,6 +126,19 @@ async function marcarAtendido(puesto) {
   estado.atendidosHoy++;
   estado.puestos[clave].turnoActivo = null;
   await escribirEstado(estado);
+}
+
+// Actualiza la fase del anuncio de un turno activo (lo reporta la TV).
+// No persiste a disco: es estado efímero de UI.
+function actualizarAnuncio(id, fase) {
+  for (const clave of Object.keys(estado.puestos)) {
+    const t = estado.puestos[clave].turnoActivo;
+    if (t && t.id === id) {
+      t.anuncio = fase;
+      return true;
+    }
+  }
+  return false;
 }
 
 async function marcarAusente(puesto) {
@@ -154,4 +168,4 @@ async function cancelarTurno(id) {
   return turno;
 }
 
-module.exports = { inicializar, obtenerEstado, crearTurno, llamarSiguiente, marcarAtendido, marcarAusente, cancelarTurno, NUM_PUESTOS };
+module.exports = { inicializar, obtenerEstado, crearTurno, llamarSiguiente, marcarAtendido, marcarAusente, actualizarAnuncio, cancelarTurno, NUM_PUESTOS };

@@ -4,6 +4,7 @@ const elListaCola = document.getElementById('lista-cola');
 const elBadgeEspera = document.getElementById('badge-espera');
 const elActivoNumero = document.getElementById('activo-numero');
 const elActivoServicio = document.getElementById('activo-servicio');
+const elActivoAnuncio = document.getElementById('activo-anuncio');
 const elActivoTiempo = document.getElementById('activo-tiempo');
 const elBtnLlamar = document.getElementById('btn-llamar');
 const elBtnRepetir = document.getElementById('btn-repetir');
@@ -35,6 +36,15 @@ const ETIQUETAS_SERVICIO = {
   'informacion': 'Información',
   'concierge': 'Concierge'
 };
+
+const ANUNCIO_INFO = {
+  encolado:   { txt: 'En espera de anuncio',  cls: 'anuncio-espera',   icon: 'ti-clock-hour-3' },
+  anunciando: { txt: 'Anunciando por TV',     cls: 'anuncio-llamando', icon: 'ti-volume' },
+  anunciado:  { txt: 'Anunciado por TV',      cls: 'anuncio-listo',    icon: 'ti-user-check' }
+};
+function infoAnuncio(fase) {
+  return ANUNCIO_INFO[fase] || ANUNCIO_INFO.encolado;
+}
 
 const CLAVE_PUESTO = 'recepcion_puesto';
 const CLAVE_PIN = 'recepcion_pin';
@@ -197,9 +207,15 @@ function renderizarPuestos(estado) {
   elPuestosGrid.innerHTML = Object.keys(estado.puestos).map(clave => {
     const t = estado.puestos[clave].turnoActivo;
     const esMio = clave === miPuesto;
-    const contenido = t
-      ? `<span class="puesto-card-num">${t.numero}</span><span class="puesto-card-svc">${ETIQUETAS_SERVICIO[t.servicio] || t.servicio}</span>`
-      : `<span class="puesto-card-libre">Libre</span>`;
+    let contenido;
+    if (t) {
+      const a = infoAnuncio(t.anuncio);
+      contenido = `<span class="puesto-card-num">${t.numero}</span>
+        <span class="puesto-card-svc">${ETIQUETAS_SERVICIO[t.servicio] || t.servicio}</span>
+        <span class="puesto-card-anuncio ${a.cls}"><i class="ti ${a.icon}"></i> ${a.txt}</span>`;
+    } else {
+      contenido = `<span class="puesto-card-libre">Libre</span>`;
+    }
     return `
       <div class="puesto-card ${esMio ? 'puesto-card-mio' : ''} ${t ? 'puesto-card-ocupado' : ''}">
         <span class="puesto-card-titulo">Recepción ${clave}${esMio ? ' (tú)' : ''}</span>
@@ -227,11 +243,16 @@ function renderizarEstado(estado) {
     }
     elActivoNumero.textContent   = activo.numero;
     elActivoServicio.textContent = (activo.nombre ? `${activo.nombre} — ` : '') + (ETIQUETAS_SERVICIO[activo.servicio] || activo.servicio);
+    const a = infoAnuncio(activo.anuncio);
+    elActivoAnuncio.className = `activo-anuncio ${a.cls}`;
+    elActivoAnuncio.innerHTML = `<i class="ti ${a.icon}"></i> ${a.txt}`;
     actualizarTiempoActivo();
   } else {
     turnoActivoDesde = null;
     elActivoNumero.textContent = '--';
     elActivoServicio.textContent = miPuesto ? 'Sin turno activo' : 'Selecciona tu puesto';
+    elActivoAnuncio.className = 'activo-anuncio oculto';
+    elActivoAnuncio.textContent = '';
     elActivoTiempo.textContent = '';
   }
 
