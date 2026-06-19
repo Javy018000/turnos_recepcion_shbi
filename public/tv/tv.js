@@ -48,7 +48,9 @@ function textoAnuncio(turno) {
   return `Turno ${svc} número ${num}${nombre}${destino}`;
 }
 
-// ── Cola de audio: reproduce los llamados uno tras otro con 1s de pausa ──
+// ── Cola de audio: descarga cada anuncio completo y lo reproduce uno tras
+//    otro con 1s de pausa. Al usar blob, los errores de red ocurren en la
+//    descarga (no durante la reproducción), así #2 nunca interrumpe a #1. ──
 const PAUSA_ENTRE_ANUNCIOS = 1000;
 let colaAudio = [];
 let reproduciendo = false;
@@ -58,23 +60,38 @@ function encolarAnuncio(turno) {
   reproducirSiguiente();
 }
 
-function reproducirSiguiente() {
+// Reproduce una URL (object URL del blob) y resuelve SOLO cuando termina
+function reproducirHasta(url) {
+  return new Promise((resolve) => {
+    let listo = false;
+    const fin = () => { if (listo) return; listo = true; resolve(); };
+    audioTurno.onended = fin;
+    audioTurno.onerror = fin;
+    audioTurno.src = url;
+    audioTurno.play().catch(e => { console.error('[tv] play bloqueado:', e); fin(); });
+  });
+}
+
+async function reproducirSiguiente() {
   if (reproduciendo) return;
   const turno = colaAudio.shift();
   if (!turno) return;
 
   reproduciendo = true;
-  let avanzado = false;
-  const avanzar = () => {
-    if (avanzado) return;
-    avanzado = true;
+  let url = null;
+  try {
+    const resp = await fetch('/tts?texto=' + encodeURIComponent(textoAnuncio(turno)));
+    if (!resp.ok) throw new Error('TTS ' + resp.status);
+    url = URL.createObjectURL(await resp.blob());
+    await reproducirHasta(url);
+  } catch (e) {
+    console.error('[tv] anuncio falló:', e);
+  } finally {
+    if (url) URL.revokeObjectURL(url);
+    audioTurno.onended = null;
+    audioTurno.onerror = null;
     setTimeout(() => { reproduciendo = false; reproducirSiguiente(); }, PAUSA_ENTRE_ANUNCIOS);
-  };
-
-  audioTurno.onended = avanzar;
-  audioTurno.onerror = avanzar;
-  audioTurno.src = '/tts?texto=' + encodeURIComponent(textoAnuncio(turno)) + '&t=' + Date.now();
-  audioTurno.play().catch(e => { console.error('[tv] play bloqueado:', e); avanzar(); });
+  }
 }
 
 let estadoActual = null;
