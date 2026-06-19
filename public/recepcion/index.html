@@ -9,6 +9,41 @@
 </head>
 <body>
 
+  <div id="overlay-puesto" class="overlay-puesto">
+    <div class="overlay-puesto-caja">
+      <img src="/assets/logo.png" alt="SHBI" class="overlay-puesto-logo">
+      <p class="overlay-puesto-titulo">¿En qué recepción estás?</p>
+      <p class="overlay-puesto-sub">Selecciona tu puesto e ingresa el PIN</p>
+      <div class="overlay-puesto-botones">
+        <button class="btn-puesto" data-puesto="1">
+          <i class="ti ti-user"></i>
+          <span class="btn-puesto-nombre">Recepción 1</span>
+          <span class="btn-puesto-estado">Disponible</span>
+        </button>
+        <button class="btn-puesto" data-puesto="2">
+          <i class="ti ti-user"></i>
+          <span class="btn-puesto-nombre">Recepción 2</span>
+          <span class="btn-puesto-estado">Disponible</span>
+        </button>
+        <button class="btn-puesto" data-puesto="3">
+          <i class="ti ti-user"></i>
+          <span class="btn-puesto-nombre">Recepción 3</span>
+          <span class="btn-puesto-estado">Disponible</span>
+        </button>
+      </div>
+
+      <div id="puesto-pin-zona" class="puesto-pin-zona oculto">
+        <label id="pin-label" class="pin-label" for="input-pin">PIN de Recepción</label>
+        <input id="input-pin" class="pin-input" type="password" inputmode="numeric"
+               maxlength="8" autocomplete="off" placeholder="••••">
+        <button id="btn-entrar-puesto" class="btn-entrar-puesto">
+          <i class="ti ti-login"></i> Entrar
+        </button>
+        <p id="pin-error" class="pin-error oculto"></p>
+      </div>
+    </div>
+  </div>
+
   <div id="banner-conexion" class="banner-conexion oculto">
     <i class="ti ti-wifi-off"></i> Reconectando al servidor...
   </div>
@@ -22,7 +57,9 @@
       </div>
     </div>
     <div class="header-der">
-      <span class="panel-label">PANEL DE RECEPCIÓN</span>
+      <button id="mi-puesto-chip" class="mi-puesto-chip" title="Cambiar de puesto">
+        <i class="ti ti-user"></i> <span id="mi-puesto-texto">Recepción —</span>
+      </button>
       <span id="estado-conexion" class="estado-desconectado">Conectando...</span>
     </div>
   </header>
@@ -53,9 +90,22 @@
         <button id="btn-llamar" class="btn btn-primario">
           <i class="ti ti-player-skip-forward"></i> Llamar siguiente
         </button>
-        <button id="btn-atendido" class="btn btn-atendido" disabled>
-          <i class="ti ti-check"></i> Marcar atendido
-        </button>
+        <div class="acciones-fila">
+          <button id="btn-repetir" class="btn btn-secundario" disabled>
+            <i class="ti ti-volume"></i> Repetir
+          </button>
+          <button id="btn-atendido" class="btn btn-atendido" disabled>
+            <i class="ti ti-check"></i> Atendido
+          </button>
+          <button id="btn-ausente" class="btn btn-ausente" disabled>
+            <i class="ti ti-user-x"></i> Ausente
+          </button>
+        </div>
+      </div>
+
+      <div class="otros-puestos">
+        <h3 class="seccion-titulo"><i class="ti ti-users"></i> Puestos de recepción</h3>
+        <div id="puestos-grid" class="puestos-grid"></div>
       </div>
 
       <div class="estadisticas">
@@ -68,6 +118,10 @@
           <div class="stat-item">
             <span class="stat-valor" id="stat-espera">0</span>
             <span class="stat-label">En espera</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-valor" id="stat-ausentes">0</span>
+            <span class="stat-label">Ausentes</span>
           </div>
         </div>
       </div>

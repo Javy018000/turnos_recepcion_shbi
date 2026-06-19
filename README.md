@@ -1,6 +1,13 @@
 # Sistema de Turnos – Hotel Plaza
 
-Sistema de gestión de turnos para la recepción de un hotel. Los huéspedes sacan turno desde una tablet en el lobby, el recepcionista controla la cola desde su PC, y una pantalla TV muestra quién es atendido.
+Sistema de gestión de turnos para la recepción de un hotel. Los huéspedes sacan turno desde una tablet en el lobby, **hasta 3 recepcionistas** controlan una cola compartida desde sus PCs, y una pantalla TV muestra a qué recepción debe dirigirse cada huésped.
+
+## Cómo funciona con varios recepcionistas
+
+- Hay **una sola cola** (orden de llegada). Cada recepcionista la atiende desde su propio PC.
+- Al abrir el panel de recepción, cada recepcionista **elige su puesto** (Recepción 1, 2 o 3). La elección se recuerda en ese navegador.
+- Cuando un recepcionista pulsa **"Llamar siguiente"**, el primer turno de la cola se le asigna a *su* puesto. Los demás puestos no se ven afectados.
+- La **TV anuncia el destino**: muestra y dice por voz *"Turno Check-In número 5, diríjase a Recepción 1"*, para que el huésped sepa exactamente a dónde ir.
 
 ## Requisitos
 
@@ -53,9 +60,32 @@ Buscar `inet` bajo `en0` o `eth0`.
 
 | Dispositivo | URL |
 |---|---|
-| PC del recepcionista | `http://<IP-servidor>:3000/recepcion` |
+| PC de cada recepcionista (1, 2 y 3) | `http://<IP-servidor>:3000/recepcion` |
 | Tablet del lobby | `http://<IP-servidor>:3000/tablet` |
 | Samsung Smart TV | `http://<IP-servidor>:3000/tv` |
+
+> Los 3 PCs de recepción abren la **misma URL** `/recepcion`. La primera vez, cada uno elige su puesto (Recepción 1/2/3) e ingresa el PIN. Un puesto ya tomado por un equipo no puede ser usado por otro al mismo tiempo.
+
+## PIN de cada recepción
+
+Cada puesto se protege con un PIN configurable en `puestos.config.json` (en la raíz del proyecto):
+
+```json
+{
+  "1": { "pin": "1111" },
+  "2": { "pin": "2222" },
+  "3": { "pin": "3333" }
+}
+```
+
+**Cambia estos PINs antes de usar el sistema en producción.** El recepcionista ingresa el PIN una sola vez por equipo; queda recordado en ese navegador. Para cambiar de puesto, toca el chip "Recepción N" en el encabezado.
+
+## Botones del panel de recepción
+
+- **Llamar siguiente** — toma el primer turno de la cola y lo asigna a tu puesto.
+- **Repetir** — vuelve a anunciar por voz en la TV el turno actual (si el huésped no escuchó).
+- **Atendido** — cierra el turno actual como atendido.
+- **Ausente** — cierra el turno actual como ausente (el huésped no se presentó).
 
 Ejemplo: si la IP del servidor es `192.168.1.105`, la tablet abre `http://192.168.1.105:3000/tablet`.
 

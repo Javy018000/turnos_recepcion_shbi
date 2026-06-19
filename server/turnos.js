@@ -2,22 +2,45 @@ const { v4: uuidv4 } = require('uuid');
 const { leerEstado, escribirEstado } = require('./persistencia');
 
 const SERVICIOS_VALIDOS = ['check-in', 'check-out', 'informacion', 'concierge'];
+const NUM_PUESTOS = 3;
 
 function fechaHoyBogota() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 }
 
+function puestosVacios() {
+  const puestos = {};
+  for (let i = 1; i <= NUM_PUESTOS; i++) {
+    puestos[String(i)] = { turnoActivo: null };
+  }
+  return puestos;
+}
+
+// Garantiza que el estado leído tenga la forma esperada (migra estados antiguos)
+function normalizar(est) {
+  if (!est.puestos || typeof est.puestos !== 'object') {
+    est.puestos = puestosVacios();
+  }
+  for (let i = 1; i <= NUM_PUESTOS; i++) {
+    const clave = String(i);
+    if (!est.puestos[clave]) est.puestos[clave] = { turnoActivo: null };
+  }
+  if (typeof est.ausentesHoy !== 'number') est.ausentesHoy = 0;
+  return est;
+}
+
 let estado = null;
 
 async function inicializar() {
-  estado = await leerEstado();
+  estado = normalizar(await leerEstado());
   const hoy = fechaHoyBogota();
   if (estado.fecha !== hoy) {
     console.log(`[turnos] Nuevo día detectado (${estado.fecha} → ${hoy}), reseteando estado`);
     estado.cola = [];
-    estado.turnoActivo = null;
+    estado.puestos = puestosVacios();
     estado.contadorServicios = { 'check-in': 0, 'check-out': 0, 'informacion': 0, 'concierge': 0 };
     estado.atendidosHoy = 0;
+    estado.ausentesHoy = 0;
     estado.fecha = hoy;
     await escribirEstado(estado);
   }
@@ -26,6 +49,14 @@ async function inicializar() {
 
 function obtenerEstado() {
   return estado;
+}
+
+function validarPuesto(puesto) {
+  const clave = String(puesto);
+  if (!estado.puestos[clave]) {
+    throw new Error(`Puesto inválido: ${puesto}`);
+  }
+  return clave;
 }
 
 async function crearTurno(servicio, nombre, observacion = '') {
@@ -59,31 +90,54 @@ async function crearTurno(servicio, nombre, observacion = '') {
   return turno;
 }
 
-async function llamarSiguiente() {
+async function llamarSiguiente(puesto) {
+  const clave = validarPuesto(puesto);
+
   if (estado.cola.length === 0) {
     throw new Error('No hay turnos en espera');
   }
 
-  if (estado.turnoActivo) {
+  // Si este puesto ya tenía un turno activo, se da por atendido al llamar al siguiente
+  if (estado.puestos[clave].turnoActivo) {
     estado.atendidosHoy++;
-    console.log(`[turnos] Turno anterior saltado: ${estado.turnoActivo.servicio} N° ${estado.turnoActivo.numero}`);
+    console.log(`[turnos] Recepción ${clave} cierra turno previo: ${estado.puestos[clave].turnoActivo.servicio} N° ${estado.puestos[clave].turnoActivo.numero}`);
   }
 
-  estado.turnoActivo = estado.cola.shift();
+  const turno = estado.cola.shift();
+  turno.puesto = Number(clave);
+  turno.activadoEn = new Date().toISOString();
+  estado.puestos[clave].turnoActivo = turno;
   await escribirEstado(estado);
 
-  console.log(`[turnos] Llamando: ${estado.turnoActivo.servicio} N° ${estado.turnoActivo.numero}`);
-  return estado.turnoActivo;
+  console.log(`[turnos] Recepción ${clave} llama: ${turno.servicio} N° ${turno.numero}`);
+  return turno;
 }
 
-async function marcarAtendido() {
-  if (!estado.turnoActivo) {
-    throw new Error('No hay turno activo');
+async function marcarAtendido(puesto) {
+  const clave = validarPuesto(puesto);
+
+  if (!estado.puestos[clave].turnoActivo) {
+    throw new Error('No hay turno activo en este puesto');
   }
 
-  console.log(`[turnos] Atendido: ${estado.turnoActivo.servicio} N° ${estado.turnoActivo.numero}`);
+  const turno = estado.puestos[clave].turnoActivo;
+  console.log(`[turnos] Recepción ${clave} atiende: ${turno.servicio} N° ${turno.numero}`);
   estado.atendidosHoy++;
-  estado.turnoActivo = null;
+  estado.puestos[clave].turnoActivo = null;
+  await escribirEstado(estado);
+}
+
+async function marcarAusente(puesto) {
+  const clave = validarPuesto(puesto);
+
+  if (!estado.puestos[clave].turnoActivo) {
+    throw new Error('No hay turno activo en este puesto');
+  }
+
+  const turno = estado.puestos[clave].turnoActivo;
+  console.log(`[turnos] Recepción ${clave} marca AUSENTE: ${turno.servicio} N° ${turno.numero} — ${turno.nombre}`);
+  estado.ausentesHoy++;
+  estado.puestos[clave].turnoActivo = null;
   await escribirEstado(estado);
 }
 
@@ -100,4 +154,4 @@ async function cancelarTurno(id) {
   return turno;
 }
 
-module.exports = { inicializar, obtenerEstado, crearTurno, llamarSiguiente, marcarAtendido, cancelarTurno };
+module.exports = { inicializar, obtenerEstado, crearTurno, llamarSiguiente, marcarAtendido, marcarAusente, cancelarTurno, NUM_PUESTOS };

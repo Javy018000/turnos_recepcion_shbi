@@ -25,6 +25,41 @@ const io = new Server(server, {
   cors: { origin: '*' }
 });
 
+// ── Configuración de puestos (PIN por recepción) ──
+const PUESTOS_DEFAULT = { '1': { pin: '1111' }, '2': { pin: '2222' }, '3': { pin: '3333' } };
+function cargarConfigPuestos() {
+  try {
+    const ruta = path.join(__dirname, '../puestos.config.json');
+    return JSON.parse(fs.readFileSync(ruta, 'utf8'));
+  } catch (e) {
+    console.warn('[server] No se pudo leer puestos.config.json, usando PINs por defecto:', e.message);
+    return PUESTOS_DEFAULT;
+  }
+}
+const PUESTOS_CONFIG = cargarConfigPuestos();
+
+// ── Control de ocupación: qué socket tiene tomado cada puesto ──
+const puestoOcupado = {}; // { '1': socketId }
+
+function ocupacionActual() {
+  const r = {};
+  for (const clave of Object.keys(PUESTOS_CONFIG)) {
+    const holder = puestoOcupado[clave];
+    r[clave] = !!(holder && io.sockets.sockets.has(holder));
+  }
+  return r;
+}
+
+function liberarPuestoDeSocket(socket) {
+  const p = socket.data.puesto;
+  if (p && puestoOcupado[p] === socket.id) {
+    delete puestoOcupado[p];
+    socket.data.puesto = null;
+    io.emit('puestos:ocupacion', ocupacionActual());
+    console.log(`[server] Recepción ${p} liberada (${socket.id})`);
+  }
+}
+
 app.use('/recepcion', express.static(path.join(__dirname, '../public/recepcion')));
 app.use('/tablet', express.static(path.join(__dirname, '../public/tablet')));
 app.use('/tv', express.static(path.join(__dirname, '../public/tv')));
@@ -90,6 +125,35 @@ app.get('/', (req, res) => res.redirect('/recepcion'));
 
 io.on('connection', (socket) => {
   console.log(`[server] Cliente conectado: ${socket.id}`);
+  socket.data.puesto = null;
+  socket.emit('puestos:ocupacion', ocupacionActual());
+
+  // ── Reclamar un puesto con PIN (exclusivo por equipo) ──
+  socket.on('puesto:reclamar', ({ puesto, pin } = {}) => {
+    const clave = String(puesto);
+    const cfg = PUESTOS_CONFIG[clave];
+    if (!cfg) {
+      return socket.emit('puesto:rechazado', { motivo: 'Puesto inválido' });
+    }
+    if (String(pin || '') !== String(cfg.pin)) {
+      return socket.emit('puesto:rechazado', { motivo: 'PIN incorrecto' });
+    }
+    const holder = puestoOcupado[clave];
+    if (holder && holder !== socket.id && io.sockets.sockets.has(holder)) {
+      return socket.emit('puesto:rechazado', { motivo: `Recepción ${clave} ya está en uso en otro equipo` });
+    }
+    // Soltar el puesto previo de este mismo socket, si tenía otro
+    if (socket.data.puesto && socket.data.puesto !== clave && puestoOcupado[socket.data.puesto] === socket.id) {
+      delete puestoOcupado[socket.data.puesto];
+    }
+    puestoOcupado[clave] = socket.id;
+    socket.data.puesto = clave;
+    socket.emit('puesto:reclamado', { puesto: clave });
+    io.emit('puestos:ocupacion', ocupacionActual());
+    console.log(`[server] Recepción ${clave} tomada por ${socket.id}`);
+  });
+
+  socket.on('puesto:liberar', () => liberarPuestoDeSocket(socket));
 
   socket.on('estado:pedir', () => {
     socket.emit('estado:sync', turnos.obtenerEstado());
@@ -108,8 +172,10 @@ io.on('connection', (socket) => {
   });
 
   socket.on('turno:llamar', async () => {
+    const puesto = socket.data.puesto;
+    if (!puesto) return socket.emit('error', { mensaje: 'Selecciona tu puesto primero' });
     try {
-      const turno = await turnos.llamarSiguiente();
+      const turno = await turnos.llamarSiguiente(puesto);
       io.emit('turno:activo', turno);
       io.emit('estado:sync', turnos.obtenerEstado());
     } catch (error) {
@@ -118,13 +184,40 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Volver a anunciar por voz el turno activo del puesto (el huésped no escuchó)
+  socket.on('turno:rellamar', () => {
+    const puesto = socket.data.puesto;
+    if (!puesto) return socket.emit('error', { mensaje: 'Selecciona tu puesto primero' });
+    const est = turnos.obtenerEstado();
+    const turno = est.puestos[puesto] && est.puestos[puesto].turnoActivo;
+    if (turno) {
+      io.emit('turno:activo', turno);
+      console.log(`[server] Recepción ${puesto} repite llamado: ${turno.servicio} N° ${turno.numero}`);
+    } else {
+      socket.emit('error', { mensaje: 'No hay turno activo para repetir' });
+    }
+  });
+
   socket.on('turno:atendido', async () => {
+    const puesto = socket.data.puesto;
+    if (!puesto) return socket.emit('error', { mensaje: 'Selecciona tu puesto primero' });
     try {
-      await turnos.marcarAtendido();
-      io.emit('turno:activo', null);
+      await turnos.marcarAtendido(puesto);
       io.emit('estado:sync', turnos.obtenerEstado());
     } catch (error) {
       console.error('[server] Error marcando atendido:', error.message);
+      socket.emit('error', { mensaje: error.message });
+    }
+  });
+
+  socket.on('turno:ausente', async () => {
+    const puesto = socket.data.puesto;
+    if (!puesto) return socket.emit('error', { mensaje: 'Selecciona tu puesto primero' });
+    try {
+      await turnos.marcarAusente(puesto);
+      io.emit('estado:sync', turnos.obtenerEstado());
+    } catch (error) {
+      console.error('[server] Error marcando ausente:', error.message);
       socket.emit('error', { mensaje: error.message });
     }
   });
@@ -141,6 +234,7 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`[server] Cliente desconectado: ${socket.id}`);
+    liberarPuestoDeSocket(socket);
   });
 });
 

@@ -7,7 +7,11 @@ const RUTA_DATA = path.join(__dirname, '../data');
 
 const ESTADO_VACIO = {
   cola: [],
-  turnoActivo: null,
+  puestos: {
+    '1': { turnoActivo: null },
+    '2': { turnoActivo: null },
+    '3': { turnoActivo: null }
+  },
   contadorServicios: {
     'check-in': 0,
     'check-out': 0,
@@ -15,6 +19,7 @@ const ESTADO_VACIO = {
     'concierge': 0
   },
   atendidosHoy: 0,
+  ausentesHoy: 0,
   fecha: ''
 };
 
