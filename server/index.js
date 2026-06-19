@@ -229,14 +229,17 @@ io.on('connection', (socket) => {
     if (!puesto) return socket.emit('error', { mensaje: 'Selecciona tu puesto primero' });
     const est = turnos.obtenerEstado();
     const turno = est.puestos[puesto] && est.puestos[puesto].turnoActivo;
-    if (turno) {
-      turnos.actualizarAnuncio(turno.id, 'encolado');
-      io.emit('turno:activo', turno);
-      io.emit('estado:sync', turnos.obtenerEstado());
-      console.log(`[server] Recepción ${puesto} repite llamado: ${turno.servicio} N° ${turno.numero}`);
-    } else {
-      socket.emit('error', { mensaje: 'No hay turno activo para repetir' });
+    if (!turno) {
+      return socket.emit('error', { mensaje: 'No hay turno activo para repetir' });
     }
+    // Ignorar si todavía está en cola o sonando, para no encolar duplicados en la TV
+    if (turno.anuncio && turno.anuncio !== 'anunciado') {
+      return;
+    }
+    turnos.actualizarAnuncio(turno.id, 'encolado');
+    io.emit('turno:activo', turno);
+    io.emit('estado:sync', turnos.obtenerEstado());
+    console.log(`[server] Recepción ${puesto} repite llamado: ${turno.servicio} N° ${turno.numero}`);
   });
 
   // La TV reporta en qué fase va el anuncio de voz de un turno

@@ -256,7 +256,8 @@ function renderizarEstado(estado) {
     elActivoTiempo.textContent = '';
   }
 
-  elBtnRepetir.disabled  = !tieneActivo;
+  // Repetir solo cuando el anuncio anterior ya terminó (evita encolar duplicados en la TV)
+  elBtnRepetir.disabled  = !tieneActivo || activo.anuncio !== 'anunciado';
   elBtnAtendido.disabled = !tieneActivo;
   elBtnAusente.disabled  = !tieneActivo;
   elBtnLlamar.disabled   = !miPuesto || tieneActivo || estado.cola.length === 0;
@@ -322,7 +323,9 @@ elBtnLlamar.addEventListener('click', () => {
 });
 
 elBtnRepetir.addEventListener('click', () => {
-  if (miPuesto) socket.emit('turno:rellamar');
+  if (!miPuesto) return;
+  elBtnRepetir.disabled = true; // bloqueo inmediato hasta que la TV vuelva a terminar
+  socket.emit('turno:rellamar');
 });
 
 elBtnAtendido.addEventListener('click', () => {
