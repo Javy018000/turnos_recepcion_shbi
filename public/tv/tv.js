@@ -48,9 +48,10 @@ function textoAnuncio(turno) {
   return `Turno ${svc} número ${num}${nombre}${destino}`;
 }
 
-// ── Cola de audio: descarga cada anuncio completo y lo reproduce uno tras
-//    otro con 1s de pausa. Al usar blob, los errores de red ocurren en la
-//    descarga (no durante la reproducción), así #2 nunca interrumpe a #1. ──
+// ── Cola de audio: reproduce cada anuncio uno tras otro con 1s de pausa.
+//    Se apunta el <audio> DIRECTO a /tts (sin blob): el WebKit viejo de
+//    Samsung Tizen no reproduce object URLs de blob, solo URLs HTTP. El
+//    guard `reproduciendo` serializa la cola, así #2 nunca interrumpe a #1. ──
 const PAUSA_ENTRE_ANUNCIOS = 1000;
 let colaAudio = [];
 let reproduciendo = false;
@@ -60,8 +61,8 @@ function encolarAnuncio(turno) {
   reproducirSiguiente();
 }
 
-// Reproduce una URL (object URL del blob) y resuelve SOLO cuando termina
-function reproducirHasta(url) {
+// Carga una URL en el <audio> y resuelve SOLO cuando termina (o falla)
+function reproducirURL(url) {
   return new Promise((resolve) => {
     let listo = false;
     const fin = () => { if (listo) return; listo = true; resolve(); };
@@ -78,17 +79,13 @@ async function reproducirSiguiente() {
   if (!turno) return;
 
   reproduciendo = true;
-  let url = null;
   try {
-    const resp = await fetch('/tts?texto=' + encodeURIComponent(textoAnuncio(turno)));
-    if (!resp.ok) throw new Error('TTS ' + resp.status);
-    url = URL.createObjectURL(await resp.blob());
+    const url = '/tts?texto=' + encodeURIComponent(textoAnuncio(turno)) + '&t=' + Date.now();
     socket.emit('anuncio:estado', { id: turno.id, fase: 'anunciando' });
-    await reproducirHasta(url);
+    await reproducirURL(url);
   } catch (e) {
     console.error('[tv] anuncio falló:', e);
   } finally {
-    if (url) URL.revokeObjectURL(url);
     audioTurno.onended = null;
     audioTurno.onerror = null;
     socket.emit('anuncio:estado', { id: turno.id, fase: 'anunciado' });
