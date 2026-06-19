@@ -65,60 +65,99 @@ app.use('/tablet', express.static(path.join(__dirname, '../public/tablet')));
 app.use('/tv', express.static(path.join(__dirname, '../public/tv')));
 app.use('/assets', express.static(path.join(__dirname, '../public/assets')));
 
-app.get('/tts', (req, res) => {
+// ── Caché de TTS: el MP3 es función pura del texto, así que los anuncios
+//    repetidos (mismo número/recepción, o "Repetir") se sirven al instante. ──
+const TTS_CACHE_MAX = 200;
+const ttsCache = new Map();    // hash(texto) -> Buffer MP3
+const ttsEnVuelo = new Map();  // hash(texto) -> Promise<Buffer> (dedupe concurrente)
+
+function hashTexto(t) {
+  return crypto.createHash('sha1').update(t).digest('hex');
+}
+
+// Genera el MP3 con SAPI (WAV) y lo convierte en memoria (Tizen no reproduce el WAV)
+function generarMp3(texto) {
+  return new Promise((resolve, reject) => {
+    const id      = crypto.randomBytes(8).toString('hex');
+    const txtPath = path.join(os.tmpdir(), `tts_${id}.txt`);
+    const wavPath = path.join(os.tmpdir(), `tts_${id}.wav`);
+    const limpiar = () => { fs.unlink(txtPath, () => {}); fs.unlink(wavPath, () => {}); };
+
+    try { fs.writeFileSync(txtPath, texto, 'utf8'); }
+    catch (e) { return reject(e); }
+
+    const txtPs = txtPath.replace(/'/g, "''");
+    const wavPs = wavPath.replace(/'/g, "''");
+    const script = [
+      "Add-Type -AssemblyName System.Speech",
+      "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer",
+      "$s.SelectVoice('Microsoft Helena Desktop')",
+      "$s.Rate = -1",
+      `$s.SetOutputToWaveFile('${wavPs}')`,
+      `$texto = [System.IO.File]::ReadAllText('${txtPs}', [System.Text.Encoding]::UTF8)`,
+      "$s.Speak($texto)",
+      "$s.Dispose()"
+    ].join('\n');
+    const encoded = Buffer.from(script, 'utf16le').toString('base64');
+
+    execFile('powershell.exe', ['-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded], { timeout: 10000 }, (errPs) => {
+      fs.unlink(txtPath, () => {});
+      if (!fs.existsSync(wavPath)) {
+        limpiar();
+        return reject(errPs || new Error('WAV no generado'));
+      }
+      try {
+        const wav = fs.readFileSync(wavPath);
+        const mp3 = wavABuferMp3(wav);
+        fs.unlink(wavPath, () => {});
+        resolve(mp3);
+      } catch (e) {
+        limpiar();
+        reject(e);
+      }
+    });
+  });
+}
+
+function obtenerMp3(texto) {
+  const key = hashTexto(texto);
+
+  if (ttsCache.has(key)) {
+    const buf = ttsCache.get(key);   // refrescar orden LRU
+    ttsCache.delete(key);
+    ttsCache.set(key, buf);
+    return Promise.resolve(buf);
+  }
+  if (ttsEnVuelo.has(key)) return ttsEnVuelo.get(key);
+
+  const promesa = generarMp3(texto).then(mp3 => {
+    ttsEnVuelo.delete(key);
+    ttsCache.set(key, mp3);
+    if (ttsCache.size > TTS_CACHE_MAX) {
+      ttsCache.delete(ttsCache.keys().next().value); // descartar el más antiguo
+    }
+    return mp3;
+  }).catch(e => {
+    ttsEnVuelo.delete(key);
+    throw e;
+  });
+
+  ttsEnVuelo.set(key, promesa);
+  return promesa;
+}
+
+app.get('/tts', async (req, res) => {
   const texto = (req.query.texto || '').trim().slice(0, 400);
   if (!texto) return res.status(400).end();
-
-  const id      = crypto.randomBytes(8).toString('hex');
-  const txtPath = path.join(os.tmpdir(), `tts_${id}.txt`);
-  const wavPath = path.join(os.tmpdir(), `tts_${id}.wav`);
-
-  const limpiar = () => {
-    fs.unlink(txtPath, () => {});
-    fs.unlink(wavPath, () => {});
-  };
-
-  try { fs.writeFileSync(txtPath, texto, 'utf8'); }
-  catch(e) { return res.status(500).end(); }
-
-  const txtPs = txtPath.replace(/'/g, "''");
-  const wavPs = wavPath.replace(/'/g, "''");
-
-  const script = [
-    "Add-Type -AssemblyName System.Speech",
-    "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer",
-    "$s.SelectVoice('Microsoft Helena Desktop')",
-    "$s.Rate = -1",
-    `$s.SetOutputToWaveFile('${wavPs}')`,
-    `$texto = [System.IO.File]::ReadAllText('${txtPs}', [System.Text.Encoding]::UTF8)`,
-    "$s.Speak($texto)",
-    "$s.Dispose()"
-  ].join('\n');
-
-  const encoded = Buffer.from(script, 'utf16le').toString('base64');
-
-  execFile('powershell.exe', ['-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded], { timeout: 10000 }, (errPs) => {
-    fs.unlink(txtPath, () => {});
-    if (!fs.existsSync(wavPath)) {
-      console.error('[tts] WAV no generado:', errPs?.message);
-      limpiar();
-      return res.status(500).end();
-    }
-
-    // Convertir WAV → MP3 en memoria (Tizen no reproduce el WAV de SAPI)
-    try {
-      const wav = fs.readFileSync(wavPath);
-      const mp3 = wavABuferMp3(wav);
-      fs.unlink(wavPath, () => {});
-      res.setHeader('Content-Type', 'audio/mpeg');
-      res.setHeader('Cache-Control', 'no-store');
-      res.send(mp3);
-    } catch (e) {
-      console.error('[tts] Error convirtiendo a MP3:', e.message);
-      limpiar();
-      res.status(500).end();
-    }
-  });
+  try {
+    const mp3 = await obtenerMp3(texto);
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(mp3);
+  } catch (e) {
+    console.error('[tts] Error generando audio:', e.message);
+    res.status(500).end();
+  }
 });
 
 app.get('/', (req, res) => res.redirect('/recepcion'));
@@ -250,7 +289,23 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 
+// Chequeo periódico de cambio de día: resetea solo a la medianoche (Bogota)
+// sin necesidad de reiniciar el servidor.
+function programarResetDiario() {
+  setInterval(async () => {
+    try {
+      if (await turnos.verificarReset()) {
+        io.emit('estado:sync', turnos.obtenerEstado());
+        console.log('[server] Estado reiniciado automáticamente por cambio de día');
+      }
+    } catch (e) {
+      console.error('[server] Error en verificación de reset diario:', e.message);
+    }
+  }, 60000);
+}
+
 turnos.inicializar().then(() => {
+  programarResetDiario();
   server.listen(PORT, '0.0.0.0', () => {
     const ip = obtenerIPLocal();
     console.log(`\n✓ Servidor corriendo`);

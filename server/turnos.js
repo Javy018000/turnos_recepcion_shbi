@@ -33,18 +33,25 @@ let estado = null;
 
 async function inicializar() {
   estado = normalizar(await leerEstado());
-  const hoy = fechaHoyBogota();
-  if (estado.fecha !== hoy) {
-    console.log(`[turnos] Nuevo día detectado (${estado.fecha} → ${hoy}), reseteando estado`);
-    estado.cola = [];
-    estado.puestos = puestosVacios();
-    estado.contadorServicios = { 'check-in': 0, 'check-out': 0, 'informacion': 0, 'concierge': 0 };
-    estado.atendidosHoy = 0;
-    estado.ausentesHoy = 0;
-    estado.fecha = hoy;
-    await escribirEstado(estado);
-  }
+  await verificarReset();
   return estado;
+}
+
+// Reinicia el estado si cambió el día (zona horaria America/Bogota).
+// Devuelve true si hubo reseteo. Se llama al arrancar y periódicamente.
+async function verificarReset() {
+  const hoy = fechaHoyBogota();
+  if (estado.fecha === hoy) return false;
+
+  console.log(`[turnos] Nuevo día detectado (${estado.fecha} → ${hoy}), reseteando estado`);
+  estado.cola = [];
+  estado.puestos = puestosVacios();
+  estado.contadorServicios = { 'check-in': 0, 'check-out': 0, 'informacion': 0, 'concierge': 0 };
+  estado.atendidosHoy = 0;
+  estado.ausentesHoy = 0;
+  estado.fecha = hoy;
+  await escribirEstado(estado);
+  return true;
 }
 
 function obtenerEstado() {
@@ -168,4 +175,4 @@ async function cancelarTurno(id) {
   return turno;
 }
 
-module.exports = { inicializar, obtenerEstado, crearTurno, llamarSiguiente, marcarAtendido, marcarAusente, actualizarAnuncio, cancelarTurno, NUM_PUESTOS };
+module.exports = { inicializar, verificarReset, obtenerEstado, crearTurno, llamarSiguiente, marcarAtendido, marcarAusente, actualizarAnuncio, cancelarTurno, NUM_PUESTOS };
