@@ -14,7 +14,7 @@ const ETIQUETAS_SERVICIO = {
 };
 
 function escapar(texto) {
-  return String(texto ?? '').replace(/[&<>"']/g, c => (
+  return String(texto == null ? '' : texto).replace(/[&<>"']/g, c => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
   ));
 }
